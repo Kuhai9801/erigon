@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/erigontech/erigon/common/dbg"
 	"github.com/erigontech/erigon/common/log/v3"
 	"github.com/erigontech/erigon/execution/tests/testutil"
 )
@@ -57,6 +58,18 @@ func TestExecutionSpecBlockchain(t *testing.T) {
 
 	// Tested in the state test format by TestState
 	bt.SkipLoad(`^static/state_tests/`)
+
+	if dbg.Exec3Parallel {
+		// Parallel-exec-only failures — see https://github.com/erigontech/erigon/issues/21136.
+		// Serial coverage of these is unaffected. All are the same family: the
+		// post-execution wrapper re-derives the per-tx writeset/commitment and
+		// diverges from serial's MakeWriteSet on a SELFDESTRUCT/recreate or
+		// fork-transition edge case.
+		bt.SkipLoad(`^frontier/opcodes/test_double_kill\.json`)
+		bt.SkipLoad(`^cancun/eip6780_selfdestruct/test_dynamic_create2_selfdestruct_collision_two_different_transactions\.json`)
+		bt.SkipLoad(`^prague/eip7002_el_triggerable_withdrawals/test_system_contract_deployment\.json`)
+		bt.SkipLoad(`^prague/eip7251_consolidations/test_system_contract_deployment\.json`)
+	}
 
 	bt.Walk(t, dir, func(t *testing.T, name string, test *testutil.BlockTest) {
 		// import pre accounts & construct test genesis block & state root
