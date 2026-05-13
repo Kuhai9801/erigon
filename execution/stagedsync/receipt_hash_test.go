@@ -37,6 +37,16 @@ func TestReceiptHashFromRPC(t *testing.T) {
 		ReceiptsRoot string `json:"receiptsRoot"`
 	}
 	require.NoError(t, json.Unmarshal(headerResp, &headerResult))
+	// The block must exist on the connected node — this test hard-codes a
+	// mainnet block number. When pointed at a different chain or a node that
+	// hasn't synced past 24363971 the RPC returns `null` for the header
+	// (Unmarshal then leaves ReceiptsRoot empty), and continuing would
+	// compare the empty-trie hash against a zero hash and "fail" for an
+	// entirely environmental reason. Treat that as a missing prerequisite,
+	// same as RPC-not-available above.
+	if headerResult.ReceiptsRoot == "" {
+		t.Skipf("block %d not available on the connected node (chain may differ)", blockNum)
+	}
 	expectedRoot := common.HexToHash(headerResult.ReceiptsRoot)
 	t.Logf("Expected receipt root: %s", expectedRoot.Hex())
 

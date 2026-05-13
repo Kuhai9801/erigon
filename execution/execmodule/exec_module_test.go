@@ -34,7 +34,6 @@ import (
 
 	"github.com/erigontech/erigon/common"
 	"github.com/erigontech/erigon/common/crypto"
-	"github.com/erigontech/erigon/common/dbg"
 	"github.com/erigontech/erigon/common/generics"
 	"github.com/erigontech/erigon/db/kv"
 	"github.com/erigontech/erigon/db/rawdb"
@@ -113,15 +112,6 @@ func TestValidateChainWithLastTxNumOfBlockAtStepBoundary(t *testing.T) {
 }
 
 func TestValidateChainAndUpdateForkChoiceWithSideForksThatGoBackAndForwardInHeight(t *testing.T) {
-	if dbg.Exec3Parallel {
-		// Flaky under EXEC3_PARALLEL when run with the rest of the package
-		// (heavy concurrent test load): the parallel reorg/commitment path is
-		// timing-sensitive and intermittently produces a wrong trie root for
-		// block 1 → BadBlock. Same family as the other #21136-gated cases.
-		// Serial coverage of this test is unaffected.
-		// https://github.com/erigontech/erigon/issues/21136
-		t.Skip("flaky parallel-exec reorg/commitment timing — issue #21136")
-	}
 	// This was caught by some of the gas-benchmark tests which run a series of new payloads and FCUs
 	// for forks with different lengths, and they jump from one fork to another.
 	// The issue was that we were not calling TruncateCanonicalHash for heights after the new FCU head number.
@@ -1314,13 +1304,6 @@ func TestAssembleBlockStateGasLimitSSTORE(t *testing.T) {
 }
 
 func TestEIP7708BurnLogWhenCoinbaseSelfDestructs(t *testing.T) {
-	if dbg.Exec3Parallel {
-		// Parallel-exec finalize uses a minIBS carrying only coinbase/burnt via
-		// SetBalance, so it doesn't know the coinbase was self-destructed → no
-		// EIP-7708 Burn log. Needs ExecutionResult.SelfDestructedAddresses.
-		// https://github.com/erigontech/erigon/issues/21136
-		t.Skip("known parallel-exec failure — issue #21136")
-	}
 	// Regression test for https://github.com/erigontech/erigon/issues/19951
 	//
 	// When the coinbase is a contract that self-destructs during execution,

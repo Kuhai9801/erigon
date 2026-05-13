@@ -2066,13 +2066,35 @@ func (result *execResult) finalizeTxSimple(
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			// PostApplyMessage needs an IBS — create a minimal one
+			// PostApplyMessage needs an IBS — create a minimal one. Apply
+			// allWrites (TxOut plus the fee-adjusted coinbase/burnt balance
+			// writes built above), NOT just TxOut: for a coinbase that
+			// self-destructed during execution and then received the priority
+			// fee at finalize, ApplyVersionedWrites processes SelfDestructPath
+			// before BalancePath (per the AccountPath enum order), so the
+			// SD-clear-balance is followed by the fee SetBalance — leaving
+			// the IBS with selfdestructed=true and balance=fee. That makes
+			// ibs.GetRemovedAccountsWithBalance — consulted by
+			// LogSelfDestructedAccounts source 2 — return {coinbase, fee},
+			// which is the residual the EIP-7708 Burn log must reference
+			// (TestEIP7708BurnLogWhenCoinbaseSelfDestructs). Applying only
+			// TxOut would leave balance=0 (source 1's stale 0), filtered out
+			// by GetRemovedAccountsWithBalance's IsZero check, and emit a
+			// BurnLog with the wrong amount.
 			ibs := state.New(state.NewVersionedStateReader(txIndex, result.TxIn, vm, stateReader))
 			ibs.SetTxContext(blockNum, txIndex)
-			if err := ibs.ApplyVersionedWrites(result.TxOut); err != nil {
+			if err := ibs.ApplyVersionedWrites(allWrites); err != nil {
 				return nil, nil, nil, err
 			}
 			postApplyMessageFunc(ibs, message.From(), result.Coinbase, &execResult, chainRules)
+			// Capture logs emitted by postApplyMessage (e.g. EIP-7708 BurnLog
+			// when a fee-credited account self-destructed) into the result so
+			// they make it into the receipt — mirroring serial's
+			// ApplyTransaction path. Without this, the validation-side receipt
+			// is missing the BurnLog that the engine's serial generation
+			// emitted (TestEIP7708BurnLogWhenCoinbaseSelfDestructs) and the
+			// receipts root diverges → BadBlock.
+			result.Logs = append(result.Logs, ibs.GetLogs(txIndex, txTask.TxHash(), blockNum, txTask.BlockHash())...)
 		}
 	}
 
